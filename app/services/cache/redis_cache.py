@@ -67,3 +67,22 @@ async def get_cached_response(key: str) -> Optional[Any]:
         return raw
 
 
+async def check_status(settings: Settings) -> bool:
+    """Check whether Redis is reachable."""
+    temp_client: Optional[Redis] = None
+    try:
+        temp_client = from_url(settings.redis_url, encoding="utf-8", decode_responses=True)
+        await temp_client.ping()
+        logger.info("Dependency check: Redis is running", extra={"url": settings.redis_url})
+        return True
+    except Exception as exc:
+        logger.error(
+            "Dependency check: Redis is NOT running",
+            extra={"url": settings.redis_url, "error": str(exc), "error_type": type(exc).__name__},
+        )
+        return False
+    finally:
+        if temp_client:
+            await temp_client.aclose()
+
+

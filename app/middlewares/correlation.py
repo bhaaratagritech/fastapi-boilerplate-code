@@ -89,17 +89,21 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
                             response_data = {"data": response_data, "correlation_id": correlation_id}
                         
                         # Create new response with updated body
+                        headers = dict(response.headers)
+                        headers.pop("content-length", None)
                         return JSONResponse(
                             content=response_data,
                             status_code=response.status_code,
-                            headers=dict(response.headers),
+                            headers=headers,
                         )
                     except (json.JSONDecodeError, UnicodeDecodeError):
                         # If body is not valid JSON, reconstruct original response
+                        headers = dict(response.headers)
+                        headers.pop("content-length", None)
                         return StarletteResponse(
                             content=body,
                             status_code=response.status_code,
-                            headers=dict(response.headers),
+                            headers=headers,
                             media_type=content_type,
                         )
             except Exception as exc:
@@ -110,10 +114,12 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
                 )
                 # Reconstruct response from chunks if we read them
                 if "body_chunks" in locals() and body_chunks:
+                    headers = dict(response.headers)
+                    headers.pop("content-length", None)
                     return StarletteResponse(
                         content=b"".join(body_chunks),
                         status_code=response.status_code,
-                        headers=dict(response.headers),
+                        headers=headers,
                         media_type=content_type,
                     )
         

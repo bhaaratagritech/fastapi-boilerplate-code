@@ -48,3 +48,21 @@ def get_connection() -> aio_pika.RobustConnection:
     return connection
 
 
+async def check_status(settings: Settings) -> bool:
+    """Check whether RabbitMQ is reachable."""
+    temp_connection: Optional[aio_pika.RobustConnection] = None
+    try:
+        temp_connection = await aio_pika.connect_robust(settings.rabbitmq_url)
+        logger.info("Dependency check: RabbitMQ is running", extra={"url": settings.rabbitmq_url})
+        return True
+    except Exception as exc:
+        logger.error(
+            "Dependency check: RabbitMQ is NOT running",
+            extra={"url": settings.rabbitmq_url, "error": str(exc), "error_type": type(exc).__name__},
+        )
+        return False
+    finally:
+        if temp_connection:
+            await temp_connection.close()
+
+

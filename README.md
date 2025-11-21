@@ -282,6 +282,11 @@ app/
    
    # OpenSearch for search functionality
    docker run --name opensearch -p 9200:9200 -e "discovery.type=single-node" opensearchproject/opensearch:2
+   docker run --name opensearch \
+  -p 9200:9200 \
+  -e "discovery.type=single-node" \
+  -e "OPENSEARCH_INITIAL_ADMIN_PASSWORD=itsfuntodevelopaisoftware@123D" \
+  opensearchproject/opensearch:2
    
    # RabbitMQ for messaging
    docker run --name rabbitmq -p 5672:5672 -p 15672:15672 -d rabbitmq:3-management
@@ -319,12 +324,102 @@ app/
    docker rm -f mysql redis opensearch rabbitmq
    ```
 
-7. **Launch the API**
+7. **Generate a JWT token for testing**
+   
+   Protected endpoints require a Bearer token that matches the application’s JWT settings. The service does **not** issue tokens, so generate one manually (or use your IdP).
+   
+   1. Check your JWT settings (defaults or `.env`):
+      - `JWT_SECRET` (default: `changeme`)
+      - `JWT_ALGORITHM` (default: `HS256`)
+      - Optional: `JWT_AUDIENCE`, `JWT_ISSUER`
+   
+   2. Generate a token with `python-jose`:
+      ```bash
+      python - <<'PY'
+      from datetime import datetime, timedelta, timezone
+      from jose import jwt
+
+      secret = "changeme"          # match JWT_SECRET
+      algorithm = "HS256"          # match JWT_ALGORITHM
+      claims = {
+          "sub": "user@example.com",
+          "role": "admin",
+          "exp": datetime.now(timezone.utc) + timedelta(hours=1),
+          # Uncomment if your config requires them:
+          # "aud": "fastapi-clients",
+          # "iss": "fastapi-service",
+      }
+
+      token = jwt.encode(claims, secret, algorithm=algorithm)
+      print(token)
+      PY
+      ```
+   
+   3. Prefer a reusable script? Use the helper under `scripts/`:
+      ```bash
+      pip install "python-jose[cryptography]"  # once per environment
+      python scripts/generate_jwt.py --sub user@example.com --role admin --hours 2
+      ```
+      - The script automatically loads `.env` from the project root and falls back to environment variables/defaults, so generated tokens always match your configuration.
+      - Override any parameter via flags (e.g., `--secret mysecret`, `--aud api-clients`).
+   
+   4. Call protected endpoints with:
+      ```
+      Authorization: Bearer <token>
+      ```
+   5. If you change `JWT_SECRET`, `JWT_ALGORITHM`, `JWT_AUDIENCE`, or `JWT_ISSUER`, regenerate the token with matching values (either via the snippet or the script).
+   6. **Use JWT inside Swagger UI**:
+      - Open http://localhost:8000/docs and click the green “Authorize” button.
+      - Paste the token (just the JWT string, no `Bearer ` prefix) into the dialog and click *Authorize*.
+      - All protected endpoints invoked via Swagger will now include the `Authorization: Bearer` header until you click *Logout*.
+   
+8. **Launch the API**
    ```bash
    uvicorn app.main:app --reload
    ```
 
 The interactive docs are available at `http://localhost:8000/docs`.
+
+## Using Redis, OpenSearch, and RabbitMQ APIs
+
+Once `docker compose up --build` is running (or you started the individual containers), you can interact with each service directly:
+
+### Redis (Cache / Rate Limiter)
+```bash
+redis-cli -h localhost -p 6379
+# Example commands
+SET greeting "hello world"
+GET greeting
+KEYS *
+```
+
+### OpenSearch (Search Engine)
+```bash
+# Check cluster health (auth disabled in docker compose; add -u admin:password if enabled)
+curl http://localhost:9200/_cluster/health | jq
+
+# Index a document
+curl -XPUT http://localhost:9200/sample-index/_doc/1 \
+     -H "Content-Type: application/json" \
+     -d '{"title":"Test doc","description":"Created from curl"}'
+
+# Search
+curl http://localhost:9200/sample-index/_search?q=title:Test | jq
+```
+
+If security is enabled, supply `-u admin:<your password>` and use `https://localhost:9200`.
+
+### RabbitMQ (Messaging)
+```bash
+# Publish a message using rabbitmqadmin (already available in the management UI)
+docker exec rabbitmq rabbitmqadmin publish \
+    exchange=amq.default routing_key=test.payload payload='{"hello":"world"}'
+
+# Consume a single message
+docker exec rabbitmq rabbitmqadmin get queue=test.payload count=1
+```
+
+You can also use the management interface at http://localhost:15672 (default user/pass: guest/guest) to create queues, publish messages, or monitor consumers.
 
 ## Run the Entire Stack with Docker Compose
 

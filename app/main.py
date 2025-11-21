@@ -1,9 +1,11 @@
 from __future__ import annotations
+import asyncio
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from fastapi_limiter import FastAPILimiter
 
 from .core.config import get_settings
@@ -40,6 +42,9 @@ async def lifespan(app: FastAPI):
             get_settings.cache_clear()
             settings = get_settings()
             configure_logging(settings.log_level, settings.pii_fields_list)
+
+    # Log status of dependent services before attempting initialization
+    await log_dependency_status(settings)
 
     # Initialize services gracefully - each service handles its own connection errors
     await mysql_service.init_engine(settings)
@@ -99,5 +104,52 @@ app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(CorrelationIdMiddleware)  # Added LAST so it runs FIRST - sets correlation ID before auth/logging
 
 app.include_router(api_router)
+
+
+def custom_openapi() -> dict:
+    """Attach JWT bearer security scheme to the OpenAPI schema so Swagger UI can accept tokens."""
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title=app.title,
+        version="1.0.0",
+        description="FastAPI microservice with JWT authentication and distributed dependencies.",
+        routes=app.routes,
+    )
+
+    security_scheme = {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "Paste the JWT generated via scripts/generate_jwt.py",
+        }
+    }
+
+    openapi_schema.setdefault("components", {}).setdefault("securitySchemes", {}).update(security_scheme)
+
+    # Apply JWT security requirement to every path/method
+    for methods in openapi_schema.get("paths", {}).values():
+        for operation in methods.values():
+            operation.setdefault("security", [{"BearerAuth": []}])
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
+
+
+async def log_dependency_status(current_settings):
+    """Check if dependent services are reachable and log their status."""
+    dependency_checks = [
+        mysql_service.check_status(current_settings),
+        redis_cache.check_status(current_settings),
+        opensearch_client.check_status(current_settings),
+        rabbitmq_connection.check_status(current_settings),
+    ]
+
+    await asyncio.gather(*dependency_checks, return_exceptions=True)
 
 

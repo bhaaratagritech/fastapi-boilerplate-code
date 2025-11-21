@@ -3,9 +3,11 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from typing import Optional
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from ...core.config import Settings
+from ...core.exceptions import AppException
 from ...core.logging_config import get_logger
 from ...models import base
 
@@ -52,7 +54,10 @@ async def shutdown_engine() -> None:
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     if not session_factory:
-        raise RuntimeError("Database session factory not initialised - MySQL connection unavailable")
+        raise AppException(
+            "Database connection unavailable. Ensure MySQL is running and `MYSQL_DSN` is correct.",
+            status_code=503,
+        )
 
     session = session_factory()
     try:
@@ -63,5 +68,25 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         raise
     finally:
         await session.close()
+
+
+async def check_status(settings: Settings) -> bool:
+    """Check whether MySQL is reachable."""
+    temp_engine: Optional[AsyncEngine] = None
+    try:
+        temp_engine = create_async_engine(settings.mysql_dsn, echo=False, pool_pre_ping=True)
+        async with temp_engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.info("Dependency check: MySQL is running", extra={"dsn": settings.mysql_dsn})
+        return True
+    except Exception as exc:
+        logger.error(
+            "Dependency check: MySQL is NOT running",
+            extra={"dsn": settings.mysql_dsn, "error": str(exc), "error_type": type(exc).__name__},
+        )
+        return False
+    finally:
+        if temp_engine:
+            await temp_engine.dispose()
 
 
