@@ -380,6 +380,39 @@ app/
 
 The interactive docs are available at `http://localhost:8000/docs`.
 
+### Understanding `pyproject.toml`
+
+This project follows the modern PEP-517/518 packaging conventions. Two key sections to be aware of:
+
+#### `[build-system]`
+```toml
+[build-system]
+requires = ["setuptools>=80.9.0", "wheel"]
+build-backend = "setuptools.build_meta"
+```
+- `requires`: bootstrap dependencies installed in an isolated environment before your package is built. Here we need `setuptools` ≥ 80.9.0 and `wheel`.
+- `build-backend`: the module that implements the PEP 517 hooks. `setuptools.build_meta` is setuptools’ backend; tools like `pip` import it and call the standard build hooks. This replaces the old `setup.py install` flow and guarantees reproducible builds.
+
+#### `[project]`
+Farther down in `pyproject.toml` you’ll see:
+```toml
+[project]
+name = "fast-api-service"
+version = "0.1.0"
+description = "Modular FastAPI microservice..."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.121.3",
+  "uvicorn[standard]>=0.38.0",
+  # ...
+]
+```
+- Defines metadata (name, version, authors, description).
+- Declares Python compatibility (`requires-python`).
+- Lists runtime dependencies that are installed when you run `pip install -e .`.
+
+Other tool-specific configs live under `[tool.*]` sections. Together, this single `pyproject.toml` replaces `setup.py`, `setup.cfg`, and `requirements.txt` by providing both build instructions and metadata in a declarative, standardized format; any packaging tool can read it and build/install the project correctly.
+
 ## Using Redis, OpenSearch, and RabbitMQ APIs
 
 Once `docker compose up --build` is running (or you started the individual containers), you can interact with each service directly:
