@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=80.9.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fast-api-service"
+version = "0.1.0"
+description = "Modular FastAPI microservice with correlation IDs, rate limiting, caching, messaging, and integrations."
+authors = [{name = "Bhaarat", email = "bhaarat@india.com"}]
+requires-python = ">=3.12"
+dependencies = [
+  # Web framework: FastAPI provides the core API framework with automatic OpenAPI docs, async support, and type validation
+  "fastapi>=0.121.3",
+  # ASGI server: Uvicorn runs the FastAPI application with high performance async support (standard extras include uvloop)
+  "uvicorn[standard]>=0.38.0",
+  # Data validation: Pydantic provides runtime type checking and validation for request/response models
+  "pydantic>=2.12.4",
+  # Email validation: Email-validator provides email address validation for Pydantic's EmailStr type
+  "email-validator>=2.1.0",
+  # Settings management: Pydantic-settings loads configuration from environment variables and .env files
+  "pydantic-settings>=2.12.0",
+  # Environment variables: Python-dotenv loads .env files to populate environment variables before app startup
+  "python-dotenv>=1.2.1",
+  # Structured logging: Loguru provides JSON-structured logging with PII scrubbing capabilities
+  "loguru>=0.7.3",
+  # Rate limiting: FastAPI-limiter implements request rate limiting middleware backed by Redis
+  "fastapi-limiter>=0.1.6",
+  # Caching & rate limiting backend: Redis provides in-memory caching and serves as the backend for rate limiting
+  "redis>=7.1.0",
+  # ORM: SQLAlchemy provides async database ORM for MySQL operations with connection pooling
+  "sqlalchemy>=2.0.44",
+  # Greenlet: Required by SQLAlchemy for async operations (bridges async/sync code)
+  "greenlet>=3.1.0",
+  # MySQL driver: Aiomysql provides async MySQL database driver for SQLAlchemy async operations
+  "aiomysql>=0.3.2",
+  # Search engine: OpenSearch-py provides async client for indexing and querying documents in OpenSearch
+  "opensearch-py>=3.1.0",
+  # AWS SDK: Boto3 provides AWS SDK for accessing AWS Secrets Manager to load secure credentials
+  "boto3>=1.41.1",
+  # JWT handling: Python-jose provides JWT token encoding/decoding and validation for authentication middleware
+  "python-jose[cryptography]>=3.5.0",
+  # Password hashing: Passlib provides secure password hashing using bcrypt for user authentication
+  "passlib[bcrypt]>=1.7.4",
+  # Message queue: Aio-pika provides async RabbitMQ client for publishing and consuming messages
+  "aio-pika>=9.5.8",
+  # Retry logic: Tenacity provides configurable retry mechanisms for resilient external service calls
+  "tenacity>=9.1.2",
+  # HTTP library: Urllib3 provides HTTP client functionality (required for boto3/requests; pinned for security)
+  "urllib3>=2.5.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  # HTTP client: Httpx provides async HTTP client for testing API endpoints and making external requests in tests
+  "httpx>=0.28.1",
+  # Testing framework: Pytest provides the core testing framework with fixtures and assertion utilities
+  "pytest>=9.0.1",
+  # Async test support: Pytest-asyncio enables testing of async functions and async FastAPI endpoints
+  "pytest-asyncio>=1.3.0",
+  # Code quality: Ruff provides fast linting and code formatting to maintain code quality standards
+  "ruff>=0.14.5"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]

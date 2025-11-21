@@ -1,0 +1,102 @@
+version: "3.9"
+
+##############################################
+# Docker Compose stack for local development
+# -------------------------------------------
+# Services included:
+# - app: FastAPI service
+# - mysql: MySQL 8 database
+# - redis: Redis cache for rate limiting
+# - opensearch: OpenSearch instance for search features
+# - rabbitmq: RabbitMQ broker for messaging
+##############################################
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fastapi-app
+    depends_on:
+      - mysql
+      - redis
+      - opensearch
+      - rabbitmq
+    env_file:
+      - .env  # Load additional environment variables if present
+    environment:
+      # Database DSN for SQLAlchemy (user:password@host:port/dbname)
+      MYSQL_DSN: mysql+aiomysql://root:root@mysql:3306/sampledb
+      # Redis URL for caching + rate limiting
+      REDIS_URL: redis://redis:6379/0
+      # OpenSearch connection settings
+      OPENSEARCH_HOST: http://opensearch:9200
+      OPENSEARCH_USERNAME: admin
+      OPENSEARCH_PASSWORD: admin
+      # RabbitMQ connection string (default guest/guest)
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      # Basic app settings
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8000
+    ports:
+      - "8000:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app  # Mount source code for live reload during development
+
+  mysql:
+    image: mysql:8
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: sampledb
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  opensearch:
+    image: opensearchproject/opensearch:2
+    container_name: opensearch
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+volumes:
+  mysql_data:
+  redis_data:
+  opensearch_data:
+  rabbitmq_data:
+
